@@ -15,8 +15,8 @@ services:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
       AUTHENTIK_REDIS__HOST: redis
       AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
     command: server
     restart: unless-stopped
@@ -39,23 +39,31 @@ services:
       - authentik_media:/media
       - authentik_certs:/certs
       - authentik_templates:/templates
+      #- ./blueprints:/blueprints/custom:ro,Z
+      - ${DOCKER_SOCK}:/var/run/docker.sock
     environment:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
       AUTHENTIK_REDIS__HOST: redis
       AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
-      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: password123
+      AUTHENTIK_BOOTSTRAP_TOKEN: password123
+      AUTHENTIK_BOOTSTRAP_EMAIL: root@example.com
     command: worker
     restart: unless-stopped
+    user: root
+    security_opt:
+      - label=disable
   postgresql:
     image: docker.io/library/postgres:16-alpine
     volumes:
       - postgresql:/var/lib/postgresql/data
     environment:
       POSTGRES_PASSWORD: ${PG_PASS:?database password required}
-      POSTGRES_USER: ${PG_USER:-authentik}
-      POSTGRES_DB: ${PG_DB:-authentik}
+      POSTGRES_USER: authentik
+      POSTGRES_DB: authentik
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
@@ -92,10 +100,9 @@ services:
       - --entrypoints.websecure.http.tls=true
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
-      - --providers.docker.network=proxy
       - --api.dashboard=true
       - --api.insecure=false
-      - --log.level=INFO
+      - --log.level=DEBUG
       - --accesslog=true
     restart: unless-stopped
     labels:
@@ -104,6 +111,11 @@ services:
       traefik.http.routers.dashboard.entrypoints: websecure
       traefik.http.routers.dashboard.service: api@internal
       traefik.http.routers.dashboard.tls: true
+      traefik.http.routers.dashboard.middlewares: authentik@docker
+
+      traefik.http.middlewares.authentik.forwardauth.address: http://ak-outpost-proxy-outpost:9000/outpost.goauthentik.io/auth/traefik
+      traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: true
+      traefik.http.middlewares.authentik.forwardauth.authResponseHeaders: X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
     security_opt:
       - no-new-privileges
       - label=disable
