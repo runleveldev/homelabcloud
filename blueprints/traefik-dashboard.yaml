@@ -1,0 +1,48 @@
+version: 1
+metadata:
+  name: Custom - Traefik Dashboard ForwardAuth
+context:
+  base_domain: !Env BASE_DOMAIN
+entries:
+  - model: authentik_providers_proxy.proxyprovider
+    id: traefik-provider
+    state: created
+    identifiers:
+      external_host: !Format [https://dashboard.%s, !Context base_domain]
+    attrs:
+      name: Provider for Traefik Dashboard
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
+      mode: forward_single
+  - model: authentik_core.application
+    id: traefik-app
+    state: created
+    identifiers:
+      slug: traefik-dashboard
+    attrs:
+      name: Traefik Dashboard
+      provider: !KeyOf traefik-provider
+  - model: authentik_outposts.dockerserviceconnection
+    id: docker-integration
+    state: created
+    identifiers:
+      name: Docker Integration
+    attrs:
+      url: http://docker-socket-proxy:2375
+  - model: authentik_outposts.outpost
+    id: proxy-outpost
+    state: created
+    identifiers:
+      name: Proxy Outpost
+    attrs:
+      type: proxy
+      providers:
+        - !KeyOf traefik-provider
+      service_connection: !KeyOf docker-integration
+      config:
+        docker_network: homelabcloud_default
+        docker_map_ports: false
+        authentik_host: https://authentik-server:9443/
+        authentik_host_insecure: true
+        authentik_host_browser: !Format [https://auth.%s, !Context base_domain]
