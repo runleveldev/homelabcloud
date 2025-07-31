@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+version: 1
+metadata:
+  name: Custom - GitHub Social Authentication
+entries:
+  - model: authentik_sources_oauth.oauthsource
+    id: github-source
+    state: present
+    identifiers:
+      slug: github
+    attrs:
+      name: GitHub
+      enabled: true
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      enrollment_flow:  !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+      policy_engine_mode: any
+      user_matching_mode: identifier
+      user_path_template: goauthentik.io/sources/%(slug)s
+      group_matching_mode: identifier
+      provider_type: github
+      authorization_url: https://github.com/login/oauth/authorize
+      access_token_url: https://github.com/login/oauth/access_token
+      profile_url: https://api.github.com/user
+      consumer_key: !Env GITHUB_CLIENT_ID
+      consumer_secret: !Env GITHUB_SECRET
+      oidc_well_known_url: https://token.actions.githubusercontent.com/.well-known/openid-configuration
+      oidc_jwks_url: https://token.actions.githubusercontent.com/.well-known/jwks
+      authorization_code_auth_method: basic_auth
+  - model: authentik_stages_identification.identificationstage
+    id: identification-stage
+    state: present
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      sources:
+        - !KeyOf github-source
