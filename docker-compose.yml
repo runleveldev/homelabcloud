@@ -44,20 +44,17 @@ services:
       - authentik_templates:/templates
       - ./blueprints:/blueprints/custom:ro,Z
     environment:
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
       AUTHENTIK_REDIS__HOST: redis
       AUTHENTIK_POSTGRESQL__HOST: postgresql
       AUTHENTIK_POSTGRESQL__USER: authentik
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_BOOTSTRAP_PASSWORD: password123
-      AUTHENTIK_BOOTSTRAP_TOKEN: password123
-      AUTHENTIK_BOOTSTRAP_EMAIL: root@example.com
       AUTHENTIK_LOG_LEVEL: debug
       BASE_DOMAIN: ${BASE_DOMAIN}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_SECRET: ${GITHUB_SECRET}
-      GITHUB_ADMIN_ID: ${GITHUB_ADMIN_ID}
     command: worker
     restart: unless-stopped
   docker-socket-proxy:

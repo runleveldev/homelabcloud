@@ -11,10 +11,10 @@ entries:
     attrs:
       name: GitHub
       enabled: true
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
       enrollment_flow:  !Find [authentik_flows.flow, [slug, default-source-enrollment]]
       policy_engine_mode: any
-      user_matching_mode: identifier
+      user_matching_mode: email_link
       user_path_template: goauthentik.io/sources/%(slug)s
       group_matching_mode: identifier
       provider_type: github
