@@ -14,6 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: docker/setup-compose-action@364cc21a5de5b1ee4a7f5f9d3fa374ce0ccde746
+      - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
@@ -25,9 +30,11 @@ jobs:
           echo 'BASE_DOMAIN=${{ vars.BASE_DOMAIN }}' >> .env
           echo 'DOCKER_SOCK=${XDG_RUNTIME_DIR}/podman/podman.sock' >> .env
           echo 'GITHUB_CLIENT_ID=${{ vars.GH_CLIENT_ID }}' >> .env
-          echo 'GITHUB_CLIENT_SECRET=${{ secrets.GH_SECRET }}' >> .env
+          echo 'GITHUB_SECRET=${{ secrets.GH_SECRET }}' >> .env
           echo 'PG_PASS=${{ secrets.PG_PASS }}' >> .env
-      - run: docker compose build
+      - run: |
+          docker compose build
+          docker compose push
       - run: docker compose up -d
         env:
           DOCKER_HOST: "ssh://deploy@${{ vars.BASE_DOMAIN }}"
