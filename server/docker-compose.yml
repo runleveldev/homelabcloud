@@ -1,26 +1,49 @@
 ---
+x-authentik-service: &authentik-service
+  image: ghcr.io/runleveldev/homelabcloud/authentik-server:2025.6.4-1
+  build:
+    context: ./images/authentik-server
+  depends_on: &authentik-service_depends-on
+    docker-socket-proxy:
+      condition: service_healthy
+    postgresql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  volumes:
+    - authentik_media:/media
+    - authentik_certs:/certs
+    - authentik_templates:/templates
+  restart: unless-stopped
+  environment:
+    AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
+    AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
+    AUTHENTIK_REDIS__HOST: redis
+    AUTHENTIK_POSTGRESQL__HOST: postgresql
+    AUTHENTIK_POSTGRESQL__USER: authentik
+    AUTHENTIK_POSTGRESQL__NAME: authentik
+    AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+    AUTHENTIK_LOG_LEVEL: debug
+    BASE_DOMAIN: ${BASE_DOMAIN}
+    GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+    GITHUB_SECRET: ${GITHUB_SECRET}
+
 name: homelabcloud
 services:
-  authentik-server:
-    image: ghcr.io/goauthentik/server:2025.6.4
+  authentik-init:
+    <<: *authentik-service
+    entrypoint: sh
+    command: -c 'ak apply_blueprint /blueprints/custom/*'
+    restart: on-failure:3
     depends_on:
-      postgresql:
+      <<: *authentik-service_depends-on
+      authentik-server:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - authentik_media:/media
-      - authentik_templates:/templates
-    environment:
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_LOG_LEVEL: debug
+  authentik-server:
+    <<: *authentik-service
     command: server
-    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "ak", "healthcheck" ]
     labels:
       traefik.enable: true
       traefik.http.routers.authentik.rule: Host(`auth.${BASE_DOMAIN}`)
@@ -30,33 +53,10 @@ services:
       - '9000'
       - '9443'
   authentik-worker:
-    image: ghcr.io/goauthentik/server:2025.6.4
-    depends_on:
-      docker-socket-proxy:
-        condition: service_healthy
-      postgresql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - authentik_media:/media
-      - authentik_certs:/certs
-      - authentik_templates:/templates
-      - ./blueprints:/blueprints/custom:ro,Z
-    environment:
-      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
-      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?secret key required}
-      AUTHENTIK_REDIS__HOST: redis
-      AUTHENTIK_POSTGRESQL__HOST: postgresql
-      AUTHENTIK_POSTGRESQL__USER: authentik
-      AUTHENTIK_POSTGRESQL__NAME: authentik
-      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
-      AUTHENTIK_LOG_LEVEL: debug
-      BASE_DOMAIN: ${BASE_DOMAIN}
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_SECRET: ${GITHUB_SECRET}
+    <<: *authentik-service
     command: worker
-    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "ak", "healthcheck" ]
   docker-socket-proxy:
     image: docker.io/tecnativa/docker-socket-proxy:0.3.0
     volumes:
@@ -69,11 +69,7 @@ services:
       POST: 1
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost:2375/_ping" ]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:2375/_ping" ]
     security_opt:
       - label=disable
   postgresql:
@@ -87,10 +83,6 @@ services:
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 5s
   redis:
     image: docker.io/library/redis:alpine
     volumes:
@@ -99,10 +91,6 @@ services:
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
-      start_period: 20s
-      interval: 30s
-      retries: 5
-      timeout: 3s
   traefik:
     image: docker.io/library/traefik:v3.5
     depends_on:

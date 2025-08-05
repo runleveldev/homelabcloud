@@ -7,18 +7,18 @@ context:
 entries:
   - model: authentik_providers_proxy.proxyprovider
     id: traefik-provider
-    state: created
+    state: present
     identifiers:
-      external_host: !Format [https://dashboard.%s, !Context base_domain]
-    attrs:
       name: Provider for Traefik Dashboard
+    attrs:
+      external_host: !Format [https://dashboard.%s, !Context base_domain]
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
       mode: forward_single
   - model: authentik_core.application
     id: traefik-app
-    state: created
+    state: present
     identifiers:
       slug: traefik-dashboard
     attrs:
@@ -26,14 +26,14 @@ entries:
       provider: !KeyOf traefik-provider
   - model: authentik_outposts.dockerserviceconnection
     id: docker-integration
-    state: created
+    state: present
     identifiers:
       name: Docker Integration
     attrs:
       url: http://docker-socket-proxy:2375
   - model: authentik_outposts.outpost
     id: proxy-outpost
-    state: created
+    state: present
     identifiers:
       name: Proxy Outpost
     attrs:
