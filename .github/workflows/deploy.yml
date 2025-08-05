@@ -1,0 +1,33 @@
+---
+name: Deploy Server
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: docker/setup-compose-action@364cc21a5de5b1ee4a7f5f9d3fa374ce0ccde746
+      - run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          echo "${{ secrets.DEPLOY_HOSTKEY }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519
+      - run: |
+          echo 'AUTHENTIK_BOOTSTRP_EMAIL=${{ vars.AUTHENTIK_BOOTSTRP_EMAIL }}' >> .env
+          echo 'AUTHENTIK_SECRET_KEY=${{ secrets.AUTHENTIK_SECRET_KEY }}' >> .env
+          echo 'BASE_DOMAIN=${{ vars.BASE_DOMAIN }}' >> .env
+          echo 'DOCKER_SOCK=${XDG_RUNTIME_DIR}/podman/podman.sock' >> .env
+          echo 'GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID }}' >> .env
+          echo 'GITHUB_CLIENT_SECRET=${{ secrets.GITHUB_CLIENT_SECRET }}' >> .env
+          echo 'PG_PASS=${{ secrets.PG_PASS }}' >> .env
+      - run: docker compose build
+      - run: docker compose up -d
+        env:
+          DOCKER_HOST: "ssh://deploy@${{ vars.BASE_DOMAIN }}"
