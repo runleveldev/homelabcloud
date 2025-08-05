@@ -20,12 +20,12 @@ jobs:
           echo "${{ secrets.DEPLOY_HOSTKEY }}" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519
       - run: |
-          echo 'AUTHENTIK_BOOTSTRP_EMAIL=${{ vars.AUTHENTIK_BOOTSTRP_EMAIL }}' >> .env
+          echo 'AUTHENTIK_BOOTSTRAP_EMAIL=${{ vars.AUTHENTIK_BOOTSTRAP_EMAIL }}' >> .env
           echo 'AUTHENTIK_SECRET_KEY=${{ secrets.AUTHENTIK_SECRET_KEY }}' >> .env
           echo 'BASE_DOMAIN=${{ vars.BASE_DOMAIN }}' >> .env
           echo 'DOCKER_SOCK=${XDG_RUNTIME_DIR}/podman/podman.sock' >> .env
-          echo 'GITHUB_CLIENT_ID=${{ secrets.GITHUB_CLIENT_ID }}' >> .env
-          echo 'GITHUB_CLIENT_SECRET=${{ secrets.GITHUB_CLIENT_SECRET }}' >> .env
+          echo 'GITHUB_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}' >> .env
+          echo 'GITHUB_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}' >> .env
           echo 'PG_PASS=${{ secrets.PG_PASS }}' >> .env
       - run: docker compose build
       - run: docker compose up -d
