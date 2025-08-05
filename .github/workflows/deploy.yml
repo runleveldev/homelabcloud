@@ -24,7 +24,7 @@ jobs:
           echo 'AUTHENTIK_SECRET_KEY=${{ secrets.AUTHENTIK_SECRET_KEY }}' >> .env
           echo 'BASE_DOMAIN=${{ vars.BASE_DOMAIN }}' >> .env
           echo 'DOCKER_SOCK=${XDG_RUNTIME_DIR}/podman/podman.sock' >> .env
-          echo 'GITHUB_CLIENT_ID=${{ secrets.GH_CLIENT_ID }}' >> .env
+          echo 'GITHUB_CLIENT_ID=${{ vars.GH_CLIENT_ID }}' >> .env
           echo 'GITHUB_CLIENT_SECRET=${{ secrets.GH_CLIENT_SECRET }}' >> .env
           echo 'PG_PASS=${{ secrets.PG_PASS }}' >> .env
       - run: docker compose build
