@@ -48,7 +48,6 @@ services:
       traefik.enable: true
       traefik.http.routers.authentik.rule: Host(`auth.${BASE_DOMAIN}`)
       traefik.http.routers.authentik.entrypoints: websecure
-      traefik.http.routers.authentik.tls: true
     expose:
       - '9000'
       - '9443'
@@ -99,8 +98,8 @@ services:
     volumes:
       - certs:/certs
     ports:
-      - '0.0.0.0:9000:80'
-      - '0.0.0.0:9443:443'
+      - '9000:80'
+      - '9443:443'
     command:
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
@@ -108,9 +107,14 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.permanent=true
       - --entrypoints.websecure.address=:443
       - --entrypoints.websecure.http.tls=true
+      - --entrypoints.websecure.http.tls.certresolver=letsencrypt
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --certificatesresolvers.letsencrypt.acme.email=${AUTHENTIK_BOOTSTRAP_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/certs/acme.json
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
       - --api.dashboard=true
       - --api.insecure=false
       - --log.level=DEBUG
@@ -121,7 +125,6 @@ services:
       traefik.http.routers.dashboard.rule: Host(`dashboard.${BASE_DOMAIN}`)
       traefik.http.routers.dashboard.entrypoints: websecure
       traefik.http.routers.dashboard.service: api@internal
-      traefik.http.routers.dashboard.tls: true
       traefik.http.routers.dashboard.middlewares: authentik@docker
 
       traefik.http.middlewares.authentik.forwardauth.address: http://ak-outpost-proxy-outpost:9000/outpost.goauthentik.io/auth/traefik
