@@ -11,7 +11,7 @@ entries:
     identifiers:
       name: Provider for Traefik Dashboard
     attrs:
-      external_host: !Format [https://dashboard.%s, !Context base_domain]
+      external_host: !Format [https://traefik.%s, !Context base_domain]
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-invalidation-flow]]
