@@ -114,7 +114,7 @@ services:
       - --certificatesresolvers.letsencrypt.acme.email=${AUTHENTIK_BOOTSTRAP_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/certs/acme.json
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
-      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-v02.api.letsencrypt.org/directory
       - --api.dashboard=true
       - --api.insecure=false
       - --log.level=DEBUG
