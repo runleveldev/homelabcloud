@@ -1,0 +1,21 @@
+app:
+  dashboard_url: ${PANGOLIN_DASHBOARD_URL}
+
+domains:
+  homelabos:
+    base_domain: ${PANGOLIN_TUNNEL_DOMAIN}
+    cert_resolver: letsencrypt
+
+server:
+  secret: ${PANGOLIN_SECRET}
+
+gerbil:
+  base_endpoint: ${PANGOLIN_ENDPOINT}
+
+flags:
+  require_email_verification: false
+  disable_signup_without_invite: true
+  disable_user_create_org: true
+
+postgres:
+  connection_string: postgres://${PANGOLIN_POSTGRESQL_USER}:${PANGOLIN_POSTGRESQL_PASSWORD}@${PANGOLIN_POSTGRESQL_HOST}:5432/${PANGOLIN_POSTGRESQL_NAME}
