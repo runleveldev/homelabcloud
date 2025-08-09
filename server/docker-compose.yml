@@ -8,6 +8,8 @@ x-authentik-service: &authentik-service
       condition: service_healthy
     postgresql:
       condition: service_healthy
+    postgresql-init:
+      condition: service_completed_successfully
     redis:
       condition: service_healthy
   volumes:
@@ -22,7 +24,7 @@ x-authentik-service: &authentik-service
     AUTHENTIK_POSTGRESQL__HOST: postgresql
     AUTHENTIK_POSTGRESQL__USER: authentik
     AUTHENTIK_POSTGRESQL__NAME: authentik
-    AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+    AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
     AUTHENTIK_LOG_LEVEL: debug
     BASE_DOMAIN: ${BASE_DOMAIN}
     GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
@@ -39,6 +41,8 @@ services:
     depends_on:
       <<: *authentik-service_depends-on
       authentik-server:
+        condition: service_healthy
+      authentik-worker:
         condition: service_healthy
 
   authentik-server:
@@ -81,12 +85,25 @@ services:
     volumes:
       - postgresql:/var/lib/postgresql/data
     environment:
-      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
-      POSTGRES_USER: authentik
-      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?database password required}
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
+
+  postgresql-init:
+    image: gchr.io/runleveldev/homelabcloud/postgres-init:latest
+    build:
+      context: ./images/postgres-init
+    environment:
+      PGHOST: postgresql
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      AUTHENTIK_POSTGRESQL_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+    restart: on-failure:3
+    depends_on:
+      postgresql:
+        condition: service_healthy
 
   redis:
     image: docker.io/library/redis:alpine
