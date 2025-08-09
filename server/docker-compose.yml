@@ -11,9 +11,9 @@ x-authentik-service: &authentik-service
     redis:
       condition: service_healthy
   volumes:
-    - authentik_media:/media
-    - authentik_certs:/certs
-    - authentik_templates:/templates
+    - authentik_media:/media:z
+    - authentik_certs:/certs:z
+    - authentik_templates:/templates:z
   restart: unless-stopped
   environment:
     AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
