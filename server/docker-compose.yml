@@ -8,12 +8,14 @@ x-authentik-service: &authentik-service
       condition: service_healthy
     postgresql:
       condition: service_healthy
+    postgresql-init:
+      condition: service_completed_successfully
     redis:
       condition: service_healthy
   volumes:
-    - authentik_media:/media
-    - authentik_certs:/certs
-    - authentik_templates:/templates
+    - authentik_media:/media:z
+    - authentik_certs:/certs:z
+    - authentik_templates:/templates:z
   restart: unless-stopped
   environment:
     AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
@@ -22,13 +24,14 @@ x-authentik-service: &authentik-service
     AUTHENTIK_POSTGRESQL__HOST: postgresql
     AUTHENTIK_POSTGRESQL__USER: authentik
     AUTHENTIK_POSTGRESQL__NAME: authentik
-    AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+    AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
     AUTHENTIK_LOG_LEVEL: debug
     BASE_DOMAIN: ${BASE_DOMAIN}
     GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
     GITHUB_SECRET: ${GITHUB_SECRET}
 
 name: homelabcloud
+
 services:
   authentik-init:
     <<: *authentik-service
@@ -39,6 +42,9 @@ services:
       <<: *authentik-service_depends-on
       authentik-server:
         condition: service_healthy
+      authentik-worker:
+        condition: service_healthy
+
   authentik-server:
     <<: *authentik-service
     command: server
@@ -51,11 +57,13 @@ services:
     expose:
       - '9000'
       - '9443'
+
   authentik-worker:
     <<: *authentik-service
     command: worker
     healthcheck:
       test: [ "CMD", "ak", "healthcheck" ]
+
   docker-socket-proxy:
     image: docker.io/tecnativa/docker-socket-proxy:0.3.0
     volumes:
@@ -71,17 +79,33 @@ services:
       test: [ "CMD", "wget", "-q", "--spider", "http://localhost:2375/_ping" ]
     security_opt:
       - label=disable
+
   postgresql:
     image: docker.io/library/postgres:16-alpine
     volumes:
       - postgresql:/var/lib/postgresql/data
     environment:
-      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
-      POSTGRES_USER: authentik
-      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?database password required}
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
+
+  postgresql-init:
+    image: gchr.io/runleveldev/homelabcloud/postgres-init:latest
+    build:
+      context: ./images/postgres-init
+    environment:
+      PGHOST: postgresql
+      PGDATABASE: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      AUTHENTIK_POSTGRESQL_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      PANGOLIN_POSTGRESQL_PASSWORD: ${PANGOLIN_POSTGRESQL_PASSWORD}
+    restart: on-failure:3
+    depends_on:
+      postgresql:
+        condition: service_healthy
+
   redis:
     image: docker.io/library/redis:alpine
     volumes:
@@ -90,6 +114,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "redis-cli ping | grep PONG" ]
+
   traefik:
     image: docker.io/library/traefik:v3.5
     depends_on:
@@ -98,8 +123,9 @@ services:
     volumes:
       - certs:/certs
     ports:
-      - '9000:80'
-      - '9443:443'
+      - '51820:51820/udp'
+      - '80:80'
+      - '443:443'
     command:
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entrypoint.to=websecure
@@ -111,6 +137,8 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.endpoint=tcp://docker-socket-proxy:2375
+      - --providers.http.endpoint=http://pangolin:3001/api/v1/traefik-config
+      - --providers.http.pollinterval=5s
       - --certificatesresolvers.letsencrypt.acme.email=${AUTHENTIK_BOOTSTRAP_EMAIL}
       - --certificatesresolvers.letsencrypt.acme.storage=/certs/acme.json
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
@@ -119,23 +147,79 @@ services:
       - --api.insecure=false
       - --log.level=DEBUG
       - --accesslog=true
+      - --experimental.plugins.badger.modulename=github.com/fosrl/badger
+      - --experimental.plugins.badger.version=latest
     restart: unless-stopped
     labels:
       traefik.enable: true
-      traefik.http.routers.dashboard.rule: Host(`dashboard.${BASE_DOMAIN}`)
-      traefik.http.routers.dashboard.entrypoints: websecure
-      traefik.http.routers.dashboard.service: api@internal
-      traefik.http.routers.dashboard.middlewares: authentik@docker
-
+      traefik.http.routers.traefik.rule: Host(`traefik.${BASE_DOMAIN}`)
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.middlewares: authentik@docker
       traefik.http.middlewares.authentik.forwardauth.address: http://ak-outpost-proxy-outpost:9000/outpost.goauthentik.io/auth/traefik
       traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: true
       traefik.http.middlewares.authentik.forwardauth.authResponseHeaders: X-authentik-username,X-authentik-groups,X-authentik-entitlements,X-authentik-email,X-authentik-name,X-authentik-uid,X-authentik-jwt,X-authentik-meta-jwks,X-authentik-meta-outpost,X-authentik-meta-provider,X-authentik-meta-app,X-authentik-meta-version
+
+  pangolin:
+    image: ghcr.io/runleveldev/homelabcloud/pangolin:1.8.0-1
+    build:
+      context: ./images/pangolin
+    restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      postgresql-init:
+        condition: service_completed_successfully
+    environment:
+      PANGOLIN_DASHBOARD_URL: https://pangolin.${BASE_DOMAIN}
+      PANGOLIN_TUNNEL_DOMAIN: ${TUNNEL_DOMAIN}
+      PANGOLIN_ENDPOINT: pangolin.${BASE_DOMAIN}
+      PANGOLIN_SECRET: ${PANGOLIN_SECRET}
+      PANGOLIN_POSTGRESQL_USER: pangolin
+      PANGOLIN_POSTGRESQL_PASSWORD: ${PANGOLIN_POSTGRESQL_PASSWORD}
+      PANGOLIN_POSTGRESQL_HOST: postgresql
+      PANGOLIN_POSTGRESQL_NAME: pangolin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/"]
+      interval: "3s"
+      timeout: "3s"
+      retries: 15
+    labels:
+      traefik.enable: true
+      traefik.http.services.pangolin-next.loadbalancer.server.port: 3002
+      traefik.http.services.pangolin-api.loadbalancer.server.port: 3000
+      traefik.http.routers.pangolin-next.rule: Host(`pangolin.${BASE_DOMAIN}`) && !PathPrefix(`/api/v1`)
+      traefik.http.routers.pangolin-next.service: pangolin-next
+      traefik.http.routers.pangolin-next.entrypoints: websecure
+      traefik.http.routers.pangolin-api.rule: Host(`pangolin.${BASE_DOMAIN}`) && PathPrefix(`/api/v1`)
+      traefik.http.routers.pangolin-api.service: pangolin-api
+      traefik.http.routers.pangolin-api.entrypoints: websecure
+
+  gerbil:
+    image: docker.io/fosrl/gerbil:1.1.0
+    restart: unless-stopped
+    network_mode: service:traefik
+    depends_on:
+      pangolin:
+        condition: service_healthy
+    command:
+      - --reachableAt=http://gerbil:3003
+      - --generateAndSaveKeyTo=/var/config/key
+      - --remoteConfig=http://pangolin:3001/api/v1/gerbil/get-config
+      - --reportBandwidthTo=http://pangolin:3001/api/v1/gerbil/receive-bandwidth
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - gerbil:/var/config
+
 volumes:
   certs:
     driver: local
   postgresql:
     driver: local
   redis:
+    driver: local
+  gerbil:
     driver: local
   authentik_media:
     driver: local
